@@ -1,14 +1,18 @@
 from data import Transaction
 
-BANK_NAME = 'Revolut'
-BANK_BIC = 'REVOLT21'
+BANK_NAME = 'Revolut LTD'
+BANK_BIC = 'REVOGB21'
+
+CURRENCY = 'EUR'
 
 DEFAULT_SEQUENCE_NO = 1
 
 
 class Mt940Writer:
 
-    def __init__(self, filename, account_iban):
+    def __init__(self, filename, account_iban, currency=CURRENCY):
+        global CURRENCY
+        CURRENCY = currency
         self.file = open(filename, 'w')
         self.account_iban = account_iban
 
@@ -35,12 +39,17 @@ class Mt940Writer:
 
         self.file.writelines([
             Mt940.make_61(
+                transaction.type,
                 transaction.datetime,
-                transaction.amount),
+                transaction.datestart,
+                transaction.amount,
+                transaction.name),
             Mt940.make_86(
                 transaction.iban,
                 transaction.name,
-                transaction.description)
+                transaction.reference,
+                transaction.card,
+                transaction.id)
         ])
 
         self._balance = transaction.after_balance
@@ -62,7 +71,8 @@ class Mt940Writer:
             Mt940.make_header(BANK_BIC))
         self.file.writelines([
             Mt940.make_20(BANK_NAME),
-            Mt940.make_25(self.account_iban, CURRENCY),
+            #Mt940.make_25(self.account_iban, CURRENCY),
+            Mt940.make_25a(self.account_iban),
             Mt940.make_28(DEFAULT_SEQUENCE_NO)
         ])
 
@@ -80,8 +90,6 @@ class Mt940Writer:
 
 
 
-CURRENCY = 'EUR'
-
 # format identifier
 TAG_940 = '940'
 
@@ -93,6 +101,9 @@ FORMAT_HEADER = \
 
 # transaction ref
 FORMAT_20 = ':20:{bank}\n'
+
+# account id
+FORMAT_25a = ':25:{iban}\n'
 
 # account id
 FORMAT_25 = ':25:{iban} {currency}\n'
@@ -107,12 +118,11 @@ FORMAT_60F = ':60F:{sign}{date}{currency}{amount}\n'
 FORMAT_62F = ':62F:{sign}{date}{currency}{amount}\n'
 
 # transaction
-FORMAT_61 = ':61:{date}{date2}{amount}{magic}\n'
+FORMAT_61 = ':61:{date}{date0}{amount}{type}{name16}{new_line_additional_34}\n'
 
 # transaction 2
-FORMAT_86 = ':86:/IBAN/{iban}/NAME/{name}/REMI/{description}\n'
+FORMAT_86 = ':86:/IBAN/{iban}/NAME/{name}/CARD/{card}/REMI/{reference}/ID/{id}\n'
 
-MAGIC = 'NTRFNONREF'
 
 
 class Mt940:
@@ -126,6 +136,11 @@ class Mt940:
     def make_20(bank):
         return FORMAT_20.format(
             bank=bank)
+
+    @staticmethod
+    def make_25a(iban):
+        return FORMAT_25a.format(
+            iban=iban)
 
     @staticmethod
     def make_25(iban, currency):
@@ -155,19 +170,31 @@ class Mt940:
             amount= Mt940.amount_val(balance))
 
     @staticmethod
-    def make_61(datetime, amount):
+    def make_61(type, datetime, date_start, amount, name):
+        name16=name[:16]
+        if len(name) > 16:
+            new_line_additional_34="\r\n" + name[16:50]
+        else:
+            new_line_additional_34=""
+        if len(name16) == 0:
+            name16="NONREF"
+
         return FORMAT_61.format(
+            type=Mt940.type(type),
             date=Mt940.date(datetime),
-            date2=Mt940.date(datetime, with_year=False),
+            date0=Mt940.date(date_start, with_year=False),
             amount=Mt940.amount(amount),
-            magic=MAGIC)
+            name16=name16,
+            new_line_additional_34=new_line_additional_34)
 
     @staticmethod
-    def make_86(iban, name, description):
+    def make_86(iban, name, reference, card, id):
         return FORMAT_86.format(
             iban=iban,
             name=name,
-            description=description)
+            reference=reference,
+            card=card,
+            id=id)
 
     @staticmethod
     def pad_5(val):
@@ -184,6 +211,15 @@ class Mt940:
     @staticmethod
     def amount(val):
         return Mt940.amount_sign(val) + Mt940.amount_val(val)
+
+    @staticmethod
+    def type(val):
+        if val == "FEE":
+            return "NCHG"
+        elif val == "CARD_PAYMENT":
+            return "NTRF"
+        else:
+            return "STRF"
 
     @staticmethod
     def date(val, with_year=True):

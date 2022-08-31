@@ -5,8 +5,13 @@ Transaction = namedtuple(
         'amount',
         'name',
         'iban',
-        'description',
+        'reference',
         'datetime',
+        'datestart',
+        'currency',
         'after_balance',
-        'before_balance'
+        'before_balance',
+        'type',
+        'card',
+        'id',
     ])

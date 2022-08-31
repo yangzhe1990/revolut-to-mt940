@@ -27,9 +27,10 @@ def main():
     args = parser.parse_args()
 
     reader = RevolutCsvReader(args.input_file)
+    transactions = reader.get_all_transactions()
+    currency = "" if len(transactions) == 0 else transactions[0].currency
 
-    with Mt940Writer(args.output_file, args.account_iban) as writer:
-        transactions = reader.get_all_transactions()
+    with Mt940Writer(args.output_file, args.account_iban, currency) as writer:
         for transaction in transactions:
             writer.write_transaction(transaction)
 
