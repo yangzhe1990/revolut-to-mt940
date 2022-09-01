@@ -11,8 +11,9 @@ DEFAULT_SEQUENCE_NO = 1
 class Mt940Writer:
 
     def __init__(self, filename, account_iban, currency=CURRENCY):
-        global CURRENCY
-        CURRENCY = currency
+        if len(currency) > 0:
+            global CURRENCY
+            CURRENCY = currency
         self.file = open(filename, 'w')
         self.account_iban = account_iban
 
